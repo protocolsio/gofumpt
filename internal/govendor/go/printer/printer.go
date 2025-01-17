@@ -1151,7 +1151,7 @@ func (p *printer) printNode(node any) error {
 		if _, ok := n.(*ast.LabeledStmt); ok {
 			p.indent = 1
 		}
-		p.stmt(n, false)
+		p.stmt(n, false, false)
 	case ast.Decl:
 		p.decl(n)
 	case ast.Spec:
@@ -1164,7 +1164,7 @@ func (p *printer) printNode(node any) error {
 				p.indent = 1
 			}
 		}
-		p.stmtList(n, 0, false)
+		p.stmtList(n, 0, false, true)
 	case []ast.Decl:
 		p.declList(n)
 	case *ast.File:

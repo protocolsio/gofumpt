@@ -1188,7 +1188,7 @@ func (p *printer) expr(x ast.Expr) {
 // Print the statement list indented, but without a newline after the last statement.
 // Extra line breaks between statements in the source are respected but at most one
 // empty line is printed between statements.
-func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace bool) {
+func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace, ignoreSingleLine bool) {
 	if nindent > 0 {
 		p.print(indent)
 	}
@@ -1202,10 +1202,17 @@ func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace bool) {
 			if len(p.output) > 0 {
 				// only print line break if we are not at the beginning of the output
 				// (i.e., we are not printing only a partial program)
-				p.linebreak(p.lineFor(s.Pos()), 1, ignore, i == 0 || nindent == 0 || p.linesFrom(line) > 0)
+				if len(list) != 1 || ignoreSingleLine {
+					p.linebreak(p.lineFor(s.Pos()), 1, ignore, i == 0 || nindent == 0 || p.linesFrom(line) > 0)
+				} else {
+					// fmt.Fprintf(os.Stderr, "START-"+strconv.Itoa(int(list[0].Pos()))+"\n")
+					// fmt.Fprintf(os.Stderr, "END-"+strconv.Itoa(int(list[0].End()))+"\n")
+					// fmt.Fprintf(os.Stderr, "DIFF-"+strconv.Itoa(int(list[0].End())-int(list[0].Pos()))+"\n")
+					p.print(blank)
+				}
 			}
 			p.recordLine(&line)
-			p.stmt(s, nextIsRBrace && i == len(list)-1)
+			p.stmt(s, nextIsRBrace && i == len(list)-1, false)
 			// labeled statements put labels on a separate line, but here
 			// we only care about the start line of the actual statement
 			// without label - correct line for each label
@@ -1226,11 +1233,15 @@ func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace bool) {
 }
 
 // block prints an *ast.BlockStmt; it always spans at least two lines.
-func (p *printer) block(b *ast.BlockStmt, nindent int) {
+func (p *printer) block(b *ast.BlockStmt, nindent int, ignoreSingleLine bool) {
 	p.setPos(b.Lbrace)
 	p.print(token.LBRACE)
-	p.stmtList(b.List, nindent, true)
-	p.linebreak(p.lineFor(b.Rbrace), 1, ignore, true)
+	p.stmtList(b.List, nindent, true, ignoreSingleLine)
+	if len(b.List) > 1 || ignoreSingleLine {
+		p.linebreak(p.lineFor(b.Rbrace), 1, ignore, true)
+	} else {
+		p.print(blank)
+	}
 	p.setPos(b.Rbrace)
 	p.print(token.RBRACE)
 }
@@ -1291,7 +1302,7 @@ func (p *printer) controlClause(isForStmt bool, init ast.Stmt, expr ast.Expr, po
 		// all semicolons required
 		// (they are not separators, print them explicitly)
 		if init != nil {
-			p.stmt(init, false)
+			p.stmt(init, false, false)
 		}
 		p.print(token.SEMICOLON, blank)
 		if expr != nil {
@@ -1302,7 +1313,7 @@ func (p *printer) controlClause(isForStmt bool, init ast.Stmt, expr ast.Expr, po
 			p.print(token.SEMICOLON, blank)
 			needsBlank = false
 			if post != nil {
-				p.stmt(post, false)
+				p.stmt(post, false, false)
 				needsBlank = true
 			}
 		}
@@ -1346,7 +1357,7 @@ func (p *printer) indentList(list []ast.Expr) bool {
 	return false
 }
 
-func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
+func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace, ignoreSingleLine bool) {
 	p.setPos(stmt.Pos())
 
 	switch s := stmt.(type) {
@@ -1377,7 +1388,7 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 		} else {
 			p.linebreak(p.lineFor(s.Stmt.Pos()), 1, ignore, true)
 		}
-		p.stmt(s.Stmt, nextIsRBrace)
+		p.stmt(s.Stmt, nextIsRBrace, false)
 
 	case *ast.ExprStmt:
 		const depth = 1
@@ -1444,23 +1455,23 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 		}
 
 	case *ast.BlockStmt:
-		p.block(s, 1)
+		p.block(s, 1, ignoreSingleLine)
 
 	case *ast.IfStmt:
 		p.print(token.IF)
 		p.controlClause(false, s.Init, s.Cond, nil)
-		p.block(s.Body, 1)
+		p.block(s.Body, 1, s.Else != nil || ignoreSingleLine)
 		if s.Else != nil {
 			p.print(blank, token.ELSE, blank)
 			switch s.Else.(type) {
 			case *ast.BlockStmt, *ast.IfStmt:
-				p.stmt(s.Else, nextIsRBrace)
+				p.stmt(s.Else, nextIsRBrace, true)
 			default:
 				// This can only happen with an incorrectly
 				// constructed AST. Permit it but print so
 				// that it can be parsed without errors.
 				p.print(token.LBRACE, indent, formfeed)
-				p.stmt(s.Else, true)
+				p.stmt(s.Else, true, true)
 				p.print(unindent, formfeed, token.RBRACE)
 			}
 		}
@@ -1474,35 +1485,35 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 		}
 		p.setPos(s.Colon)
 		p.print(token.COLON)
-		p.stmtList(s.Body, 1, nextIsRBrace)
+		p.stmtList(s.Body, 1, nextIsRBrace, true)
 
 	case *ast.SwitchStmt:
 		p.print(token.SWITCH)
 		p.controlClause(false, s.Init, s.Tag, nil)
-		p.block(s.Body, 0)
+		p.block(s.Body, 0, true)
 
 	case *ast.TypeSwitchStmt:
 		p.print(token.SWITCH)
 		if s.Init != nil {
 			p.print(blank)
-			p.stmt(s.Init, false)
+			p.stmt(s.Init, false, false)
 			p.print(token.SEMICOLON)
 		}
 		p.print(blank)
-		p.stmt(s.Assign, false)
+		p.stmt(s.Assign, false, false)
 		p.print(blank)
-		p.block(s.Body, 0)
+		p.block(s.Body, 0, true)
 
 	case *ast.CommClause:
 		if s.Comm != nil {
 			p.print(token.CASE, blank)
-			p.stmt(s.Comm, false)
+			p.stmt(s.Comm, false, false)
 		} else {
 			p.print(token.DEFAULT)
 		}
 		p.setPos(s.Colon)
 		p.print(token.COLON)
-		p.stmtList(s.Body, 1, nextIsRBrace)
+		p.stmtList(s.Body, 1, nextIsRBrace, true)
 
 	case *ast.SelectStmt:
 		p.print(token.SELECT, blank)
@@ -1514,13 +1525,13 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 			p.setPos(body.Rbrace)
 			p.print(token.RBRACE)
 		} else {
-			p.block(body, 0)
+			p.block(body, 0, true)
 		}
 
 	case *ast.ForStmt:
 		p.print(token.FOR)
 		p.controlClause(true, s.Init, s.Cond, s.Post)
-		p.block(s.Body, 1)
+		p.block(s.Body, 1, false)
 
 	case *ast.RangeStmt:
 		p.print(token.FOR, blank)
@@ -1540,7 +1551,7 @@ func (p *printer) stmt(stmt ast.Stmt, nextIsRBrace bool) {
 		p.print(token.RANGE, blank)
 		p.expr(stripParens(s.X))
 		p.print(blank)
-		p.block(s.Body, 1)
+		p.block(s.Body, 1, false)
 
 	default:
 		panic("unreachable")
@@ -1893,7 +1904,7 @@ func (p *printer) funcBody(headerSize int, sep whiteSpace, b *ast.BlockStmt) {
 				if i > 0 {
 					p.print(token.SEMICOLON, blank)
 				}
-				p.stmt(s, i == len(b.List)-1)
+				p.stmt(s, i == len(b.List)-1, false)
 			}
 			p.print(blank)
 		}
@@ -1906,7 +1917,7 @@ func (p *printer) funcBody(headerSize int, sep whiteSpace, b *ast.BlockStmt) {
 	if sep != ignore {
 		p.print(blank) // always use blank
 	}
-	p.block(b, 1)
+	p.block(b, 1, false)
 }
 
 // distanceFrom returns the column difference between p.out (the current output

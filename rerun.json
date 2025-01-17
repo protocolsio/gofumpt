@@ -1,0 +1,6 @@
+{
+	"args": [],
+	"suffixes": [".go", ".gohtml"],
+    "attrib": true,
+	"build": "C:/Users/frola/go/bin/gofumptfork"
+}
