@@ -1,4 +1,4 @@
-module mvdan.cc/gofumpt
+module github.com/protocolsio/protocols-gofumpt
 
 go 1.22.0
 

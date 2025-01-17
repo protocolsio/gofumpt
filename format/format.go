@@ -26,8 +26,8 @@ import (
 	// "github.com/google/go-cmp/cmp"
 	"golang.org/x/tools/go/ast/astutil"
 
-	"mvdan.cc/gofumpt/internal/govendor/go/format"
-	"mvdan.cc/gofumpt/internal/version"
+	"github.com/protocolsio/protocols-gofumpt/internal/govendor/go/format"
+	"github.com/protocolsio/protocols-gofumpt/internal/version"
 )
 
 // Options is the set of formatting options which affect gofumpt.

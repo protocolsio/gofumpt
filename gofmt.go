@@ -27,10 +27,10 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
-	gformat "mvdan.cc/gofumpt/format"
-	"mvdan.cc/gofumpt/internal/govendor/diff"
-	"mvdan.cc/gofumpt/internal/govendor/go/printer"
-	gversion "mvdan.cc/gofumpt/internal/version"
+	gformat "github.com/protocolsio/protocols-gofumpt/format"
+	"github.com/protocolsio/protocols-gofumpt/internal/govendor/diff"
+	"github.com/protocolsio/protocols-gofumpt/internal/govendor/go/printer"
+	gversion "github.com/protocolsio/protocols-gofumpt/internal/version"
 )
 
 //go:generate go run gen_govendor.go
